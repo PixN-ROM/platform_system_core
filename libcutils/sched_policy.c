@@ -53,6 +53,8 @@ static inline SchedPolicy _policy(SchedPolicy p)
 #define TIMER_SLACK_FG 50000
 
 static pthread_once_t the_once = PTHREAD_ONCE_INIT;
+static pthread_once_t sched_once = PTHREAD_ONCE_INIT;
+static pthread_once_t cpuset_once = PTHREAD_ONCE_INIT;
 
 static int __sys_supports_schedgroups = -1;
 static int __sys_supports_cpusets = -1;
@@ -118,8 +120,13 @@ static void __initialize(void) {
         read(pfd, proc_name, sizeof(proc_name) - 1);
         close(pfd);
     }
+}
 
+static void __init_sched(void) {
     char* filename;
+
+    pthread_once(&the_once, __initialize);
+
     if (!access("/dev/cpuctl/tasks", F_OK)) {
         __sys_supports_schedgroups = 1;
 
@@ -147,6 +154,12 @@ static void __initialize(void) {
     } else {
         __sys_supports_schedgroups = 0;
     }
+}
+
+static void __init_cpuset(void) {
+    char *filename;
+
+    pthread_once(&the_once, __initialize);
 
 #ifdef USE_CPUSETS
     if (!access("/dev/cpuset/tasks", F_OK)) {
@@ -275,7 +288,8 @@ int get_sched_policy(int tid, SchedPolicy *policy)
     if (tid == 0) {
         tid = gettid();
     }
-    pthread_once(&the_once, __initialize);
+
+    pthread_once(&sched_once, __init_sched);
 
     if (__sys_supports_schedgroups) {
         char grpBuf[32];
@@ -336,7 +350,7 @@ int set_cpuset_policy(int tid, SchedPolicy policy)
         tid = gettid();
     }
 
-    pthread_once(&the_once, __initialize);
+    pthread_once(&cpuset_once, __init_cpuset);
 
     int fd = -1;
     int boost_fd = -1;
@@ -390,7 +404,8 @@ int set_sched_policy(int tid, SchedPolicy policy)
         tid = gettid();
     }
     policy = _policy(policy);
-    pthread_once(&the_once, __initialize);
+
+    pthread_once(&sched_once, __init_sched);
 
 #if POLICY_DEBUG
     char statfile[64];
