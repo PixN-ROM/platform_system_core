@@ -74,15 +74,8 @@ static int bg_schedboost_fd = -1;
 static int fg_schedboost_fd = -1;
 #endif
 
-/* Add tid to the scheduling group defined by the policy */
-static int add_tid_to_cgroup(int tid, int fd)
+static int write_tid_to_fd(int tid, int fd)
 {
-    if (fd < 0) {
-        SLOGE("%s add_tid_to_cgroup failed; fd=%d\n", proc_name, fd);
-        errno = EINVAL;
-        return -1;
-    }
-
     // specialized itoa -- works for tid > 0
     char text[22];
     char *end = text + sizeof(text) - 1;
@@ -100,8 +93,42 @@ static int add_tid_to_cgroup(int tid, int fd)
          */
         if (errno == ESRCH)
                 return 0;
-        SLOGW("%s add_tid_to_cgroup failed to write '%s' (%s); fd=%d\n",
-              proc_name, ptr, strerror(errno), fd);
+        return -1;
+    }
+
+    return 0;
+}
+
+/* Add tid to the scheduling group defined by the policy */
+static int add_tid_to_cgroup(int tid, int fd)
+{
+    if (fd < 0) {
+        SLOGE("%s add_tid_to_cgroup failed; fd=%d\n", proc_name, fd);
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (write_tid_to_fd(tid, fd) != 0) {
+        SLOGW("%s add_tid_to_cgroup failed to write '%d' (%s); fd=%d\n",
+              proc_name, tid, strerror(errno), fd);
+        errno = EINVAL;
+        return -1;
+    }
+
+    return 0;
+}
+
+static int add_tid_to_cpuset(int tid, int fd)
+{
+    if (fd < 0) {
+        SLOGE("%s add_tid_to_cpuset failed; fd=%d\n", proc_name, fd);
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (write_tid_to_fd(tid, fd) != 0) {
+        SLOGW("%s add_tid_to_cpuset failed to write '%d' (%s); fd=%d\n",
+              proc_name, tid, strerror(errno), fd);
         errno = EINVAL;
         return -1;
     }
@@ -384,7 +411,7 @@ int set_cpuset_policy(int tid, SchedPolicy policy)
         break;
     }
 
-    if (add_tid_to_cgroup(tid, fd) != 0) {
+    if (add_tid_to_cpuset(tid, fd) != 0) {
         if (errno != ESRCH && errno != ENOENT)
             return -errno;
     }
