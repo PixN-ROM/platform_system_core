@@ -386,7 +386,6 @@ int set_cpuset_policy(int tid, SchedPolicy policy)
 
     policy = _policy(policy);
 
-    int fd;
     switch (policy) {
     case SP_BACKGROUND:
         fd = bg_cpuset_fd;
